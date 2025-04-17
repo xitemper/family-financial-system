@@ -2,6 +2,7 @@ package com.bishe.vo;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
+import io.swagger.annotations.ApiOperation;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -13,6 +14,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class TransactionVO {
+
+    @ApiModelProperty(value="账单id")
+    private Long transactionId;
 
     @ApiModelProperty(value = "用户名称")
     private String username;

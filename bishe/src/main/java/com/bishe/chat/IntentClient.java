@@ -1,11 +1,14 @@
 package com.bishe.chat;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import okhttp3.*;
-import org.apache.commons.lang3.StringEscapeUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class IntentClient {
     // 指向本地 Flask 服务的接口
@@ -30,28 +33,42 @@ public class IntentClient {
 //                .url(API_URL)
 //                .post(body)
 //                .build();
+//
 //        try (Response response = client.newCall(request).execute()) {
 //            if (!response.isSuccessful()) {
 //                throw new IOException("Unexpected code " + response);
 //            }
-//            // 取得返回结果后进行 Unicode 解码（可选）
 //            String result = response.body().string();
-//            return StringEscapeUtils.unescapeJava(result);
+//
+//            // 解析 JSON，提取 labels 和 scores
+//            JSONObject jsonObject = new JSONObject(result);
+//            JSONArray labels = jsonObject.getJSONArray("labels");
+//            JSONArray scores = jsonObject.getJSONArray("scores");
+//
+//            // 找出分数最高的 index
+//            int maxIndex = 0;
+//            double maxScore = scores.getDouble(0);
+//            for (int i = 1; i < scores.length(); i++) {
+//                double score = scores.getDouble(i);
+//                if (score > maxScore) {
+//                    maxScore = score;
+//                    maxIndex = i;
+//                }
+//            }
+//
+//            // 返回分数最高的 label
+//            return labels.getString(maxIndex);
 //        }
 //    }
 
     public String classify(String text, String[] candidateLabels) throws IOException {
-        // 构造 JSON 请求体
-        StringBuilder labelsJson = new StringBuilder("[");
-        for (int i = 0; i < candidateLabels.length; i++) {
-            labelsJson.append("\"").append(candidateLabels[i]).append("\"");
-            if (i != candidateLabels.length - 1) {
-                labelsJson.append(",");
-            }
-        }
-        labelsJson.append("]");
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put("text", text);
+        requestMap.put("candidate_labels", candidateLabels);
 
-        String json = "{\"text\": \"" + text + "\", \"candidate_labels\": " + labelsJson.toString() + "}";
+        ObjectMapper objectMapper = new ObjectMapper();
+        String json = objectMapper.writeValueAsString(requestMap);  // 👈 安全构造 JSON
+
         RequestBody body = RequestBody.create(json, JSON);
         Request request = new Request.Builder()
                 .url(API_URL)
@@ -62,14 +79,12 @@ public class IntentClient {
             if (!response.isSuccessful()) {
                 throw new IOException("Unexpected code " + response);
             }
-            String result = response.body().string();
 
-            // 解析 JSON，提取 labels 和 scores
+            String result = response.body().string();
             JSONObject jsonObject = new JSONObject(result);
             JSONArray labels = jsonObject.getJSONArray("labels");
             JSONArray scores = jsonObject.getJSONArray("scores");
 
-            // 找出分数最高的 index
             int maxIndex = 0;
             double maxScore = scores.getDouble(0);
             for (int i = 1; i < scores.length(); i++) {
@@ -80,8 +95,35 @@ public class IntentClient {
                 }
             }
 
-            // 返回分数最高的 label
+            double sum = 0;
+            for (int i = 0; i < scores.length(); i++) {
+                sum += scores.getDouble(i);
+            }
+            double avg = sum / scores.length();
+            double confidence = maxScore - avg;
+
+            System.out.println("当前JsonObject的scores:"+scores);
+            System.out.println("当前JsonObject的labels:"+labels);
+
+            for (String candidateLabel : candidateLabels) {
+                if(text.contains(candidateLabel)){
+                    return candidateLabel;
+                }
+            }
+
+            if (confidence < 0.10
+                    || maxScore < 0.3
+                    || labels.getString(maxIndex).equals("为什么")
+                    || labels.getString(maxIndex).equals("我想知道")
+                    || labels.getString(maxIndex).contains("告诉我")
+                    || labels.getString(maxIndex).equals("你觉得")) {
+                return "通用查询";
+            }
             return labels.getString(maxIndex);
+//            if (maxScore < 0.65) {
+//                return "通用查询";
+//            }
+//            return labels.getString(maxIndex);
         }
     }
 

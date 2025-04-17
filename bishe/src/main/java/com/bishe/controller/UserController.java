@@ -109,5 +109,11 @@ public class UserController {
         return userService.getAllPlan(userId);
     }
 
+    @ApiOperation("获取某个计划的进度VO")
+    @GetMapping("/getPlanProgress")
+    public Result getPlanProgress(@RequestParam("planId")Long planId){
+        return userService.getPlanProgress(planId);
+    }
+
 
 }

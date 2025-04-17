@@ -7,6 +7,8 @@ import lombok.experimental.Accessors;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import io.swagger.annotations.ApiModel;
+
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.time.LocalDateTime;
 import javax.persistence.Column;
@@ -71,6 +73,19 @@ public class Transaction {
 
   @ApiModelProperty(value = "上传文件ID（外键，关联uploaded_file表）")
   private long fileId;
- 
+
+  @Override
+  public String toString() {
+    return String.format(
+            "【%s】金额: %.2f | 分类: %s | 备注: %s | 时间: %s | 家庭组: %s ",
+            type.toUpperCase(),
+            amount,
+            category,
+            description != null ? description : "无",
+            transactionDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")),
+            familyName != null ? familyName : "无",
+            isFamilyBill == 1 ? "家庭账单" : "个人账单"
+    );
+  }
 
 }

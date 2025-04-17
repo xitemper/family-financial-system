@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.*;
 import org.springframework.security.core.parameters.P;
 
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.List;
 
 @Mapper
@@ -104,7 +105,15 @@ public interface FamilyMapper {
                                              @Param("startDate") LocalDateTime startDate,
                                              @Param("endDate") LocalDateTime endDate);
 
+    @Select("select family_id from family")
+    List<Long> getAllFamilyIds();
 
+    @Insert("insert into financial_score_history (family_id, month, balance_score, unnecessary_expense_score, budget_execution_score, liability_score) " +
+            "VALUES (#{scoreHistory.familyId},#{scoreHistory.month},#{scoreHistory.balanceScore},#{scoreHistory.unnecessaryExpenseScore},#{scoreHistory.budgetExecutionScore},#{scoreHistory.liabilityScore})")
+    void saveFinancialHistoryScore(@Param("scoreHistory") FinancialScoreHistory scoreHistory);
+
+    @Select("select * from financial_score_history where family_id = #{familyId} and month between #{startDate} and #{endDate} order by month asc")
+    List<FinancialScoreHistory> getFinancialScoreHistorys(@Param("familyId")Long familyId,@Param("startDate")Date startDate,@Param("endDate")Date endDate);
 
 
 //    @Select("select * from family_plans where family_id = #{familyId} and  type=#{type} ")

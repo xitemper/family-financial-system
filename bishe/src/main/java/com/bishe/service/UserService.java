@@ -36,4 +36,6 @@ public interface UserService {
     Result getAllPlan(Long userId);
 
     void checkAndRemindPlans();
+
+    Result getPlanProgress(Long planId);
 }

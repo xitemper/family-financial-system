@@ -5,6 +5,7 @@ import com.bishe.entity.*;
 import com.bishe.mapper.*;
 import com.bishe.service.FamilyService;
 import com.bishe.service.UserService;
+import com.bishe.vo.PlanProgressVO;
 import com.bishe.vo.UserInfoVO;
 import com.bishe.vo.UserVO;
 import com.fasterxml.uuid.Generators;
@@ -14,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -369,6 +372,24 @@ public class UserServiceImpl implements UserService {
             notifyMapper.addNotify(newUserNotifications);
             userMapper.updateStatusToFinish(plans.getId());
         }
+    }
+
+    @Override
+    public Result getPlanProgress(Long planId) {
+        PlanProgressVO progressVO = new PlanProgressVO();
+        Plans plan =  userMapper.getPlanById(planId);
+        progressVO.setCurrentAmount(plan.getCurrentAmount());
+        progressVO.setTargetAmount(plan.getTargetAmount());
+        if(plan.getTargetAmount()!=0.0){
+            BigDecimal current = BigDecimal.valueOf(plan.getCurrentAmount());
+            BigDecimal target = BigDecimal.valueOf(plan.getTargetAmount());
+            BigDecimal ratio = current.divide(target, 2, RoundingMode.HALF_UP); // 比例，保留两位小数
+            int progress = ratio.multiply(BigDecimal.valueOf(100)).intValue(); // 百分比 *100，再转为int
+            progressVO.setProgress(progress);
+        }else{
+            return Result.fail("选中计划的目标金额为0，请修改！");
+        }
+        return Result.succeed("getPlanProgress方法执行成功",progressVO);
     }
 
     private boolean verifyCode(String phone,String vercode){

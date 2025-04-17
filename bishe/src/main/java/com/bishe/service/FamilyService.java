@@ -1,8 +1,10 @@
 package com.bishe.service;
 
+import com.bishe.dto.ScoreTrendDTO;
+import com.bishe.entity.FinancialScoreHistory;
 import com.bishe.entity.Result;
 
-import java.time.YearMonth;
+import java.util.List;
 
 public interface FamilyService {
 
@@ -29,4 +31,10 @@ public interface FamilyService {
     Result getCurMonthTotalExpense(Long familyId);
 
     Result calculateDimensionScores(Long familyId);
+
+    List<Long> getAllFamilyIds();
+
+    void saveFinancialHistoryScore(FinancialScoreHistory scoreHistory);
+
+    Result getScoreTrend(Long familyId);
 }

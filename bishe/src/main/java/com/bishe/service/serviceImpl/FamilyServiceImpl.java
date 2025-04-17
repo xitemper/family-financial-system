@@ -1,6 +1,7 @@
 package com.bishe.service.serviceImpl;
 
 import com.bishe.controller.FamilyController;
+import com.bishe.dto.ScoreTrendDTO;
 import com.bishe.entity.*;
 import com.bishe.mapper.*;
 import com.bishe.service.FamilyService;
@@ -23,7 +24,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class FamilyServiceImpl implements FamilyService {
@@ -246,7 +249,6 @@ public class FamilyServiceImpl implements FamilyService {
         LocalDateTime startDateTime = firstDay.atStartOfDay();
         LocalDateTime endDateTime = firstDayNextMonth.atStartOfDay();
 
-
         Map<String, String> adviceMap = new HashMap<>();
         result.add(new FinancialHealthDimensionScore("收支平衡", calcBalanceScore(familyId, startDateTime, endDateTime, adviceMap), adviceMap.get("收支平衡")));
         result.add(new FinancialHealthDimensionScore("非必要支出占比", calcUnnecessaryExpenseScore(familyId, startDateTime, endDateTime, adviceMap), adviceMap.get("非必要支出占比")));
@@ -255,6 +257,55 @@ public class FamilyServiceImpl implements FamilyService {
         result.add(new FinancialHealthDimensionScore("负债情况", calcLiabilitiesScore(familyId, startDateTime, endDateTime, adviceMap), adviceMap.get("负债情况")));
 
         return Result.succeed("calculateDimensionScores执行成功!", result);
+    }
+
+    @Override
+    public List<Long> getAllFamilyIds() {
+        return familyMapper.getAllFamilyIds();
+    }
+
+    @Override
+    public void saveFinancialHistoryScore(FinancialScoreHistory scoreHistory) {
+        familyMapper.saveFinancialHistoryScore(scoreHistory);
+    }
+
+    @Override
+    public Result getScoreTrend(Long familyId) {
+        // 获取当前月份的第一天
+        LocalDate now = LocalDate.now().withDayOfMonth(1);
+        // 获取开始日期（当前月前推 5 个月）
+        LocalDate start = now.minusMonths(5);
+
+        // 查数据库的时间范围是：start ~ now.minusMonths(1)
+        Date startDate = java.sql.Date.valueOf(start);
+        Date endDate = java.sql.Date.valueOf(now.minusMonths(1)); // 不查当前月
+        // 查历史数据
+        List<FinancialScoreHistory> historyRecords = familyMapper.getFinancialScoreHistorys(familyId, startDate, endDate);
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy年M月");
+        List<ScoreTrendDTO> trend = new ArrayList<>();
+        if(historyRecords!=null&&!historyRecords.isEmpty()){
+            //前5个月
+            trend = historyRecords.stream()
+                    .map(record -> {
+                        LocalDate monthDate = ((java.sql.Date) record.getMonth()).toLocalDate();
+                        String monthStr = monthDate.format(formatter);
+                        return new ScoreTrendDTO(monthStr, record);
+                    })
+                    .collect(Collectors.toList());
+        }
+
+        //本月数据
+        Result result = calculateDimensionScores(familyId);
+        List<FinancialHealthDimensionScore> list = (List<FinancialHealthDimensionScore>) result.getContent();
+        ScoreTrendDTO scoreTrendDTO = new ScoreTrendDTO();
+        scoreTrendDTO.setMonthStr(now.format(formatter));
+        scoreTrendDTO.setBalanceScore(list.get(0).getScore());
+        scoreTrendDTO.setUnnecessaryExpenseScore(list.get(1).getScore());
+        scoreTrendDTO.setBudgetExecutionScore(list.get(2).getScore());
+        scoreTrendDTO.setLiabilityScore(list.get(3).getScore());
+        trend.add(scoreTrendDTO);
+        return Result.succeed("getScoreTrend方法执行成功！",trend);
     }
 
     //第一维度 计算收支平衡
@@ -323,19 +374,20 @@ public class FamilyServiceImpl implements FamilyService {
     //    第三维度：预算执行情况
     private double calcBudgetExecutionScore(Long familyId, LocalDateTime startDateTime, LocalDateTime endDateTime, Map<String, String> adviceMap) {
         //本月家庭组预算
-        BigDecimal budget = BigDecimal.valueOf(familyMapper.getTotalBudget(familyId, startDateTime.getMonthValue(), startDateTime.getYear()));
-        //本月总支出
-        BigDecimal expense = BigDecimal.valueOf(familyMapper.getCurrentMonthFamilyTotalExpense(familyId, startDateTime, endDateTime));
-
-        if(expense==null|| budget.compareTo(BigDecimal.ZERO) == 0){
+        Double expenseValue =familyMapper.getCurrentMonthFamilyTotalExpense(familyId, startDateTime, endDateTime);
+        if(expenseValue==null||expenseValue==0){
             adviceMap.put("预算执行情况", "本月暂未有支出。建议若未设置本月家庭组预算的话尽快设置！");
             return 100;
         }
-
-        if (budget == null || budget.compareTo(BigDecimal.ZERO) == 0) {
+        Double budgetValue = familyMapper.getTotalBudget(familyId, startDateTime.getYear(), startDateTime.getMonthValue());
+        if(budgetValue==null|| budgetValue==0){
             adviceMap.put("预算执行情况", "本月已有支出，但暂未设置本月家庭组预算。建议设置本月家庭组预算！");
             return 0;
         }
+        BigDecimal budget = BigDecimal.valueOf(budgetValue);
+
+        //本月总支出
+        BigDecimal expense = BigDecimal.valueOf(expenseValue);
         // 支出 / 预算
         double ratio = expense.divide(budget, 2, RoundingMode.HALF_UP).doubleValue();
         // 超出预算的 每 1% 扣 0.4分
@@ -383,9 +435,14 @@ public class FamilyServiceImpl implements FamilyService {
         //本月家庭组预算
         BigDecimal totalDebt = transactionMapper.getMonthlyLiabilities(familyId, startDateTime, endDateTime);
         //本月总收入
-        BigDecimal income = BigDecimal.valueOf(familyMapper.getCurrentMonthFamilyTotalIncome(familyId, startDateTime, endDateTime));
+        Double currentMonthFamilyTotalIncome = familyMapper.getCurrentMonthFamilyTotalIncome(familyId, startDateTime, endDateTime);
+        if(currentMonthFamilyTotalIncome==null){
+            adviceMap.put("负债情况", "本月存在负债情况，但暂未有收入。建议增加收入来源。");
+            return 0;
+        }
+        BigDecimal income = BigDecimal.valueOf(currentMonthFamilyTotalIncome);
 
-        if(totalDebt==null){
+        if(totalDebt==null || totalDebt.compareTo(BigDecimal.ZERO) == 0){
             adviceMap.put("负债情况", "本月暂未有负债情况，请继续保持！。");
             return 100;
         }

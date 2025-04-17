@@ -1,14 +1,14 @@
 package com.bishe.controller;
 
+import com.bishe.dto.ScoreTrendDTO;
 import com.bishe.entity.Result;
 import com.bishe.service.FamilyService;
-import com.bishe.service.UserService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.YearMonth;
+import java.util.List;
 
 @Api(tags = "用户模块")
 @RestController
@@ -89,6 +89,12 @@ public class FamilyController {
     @GetMapping("/financialScore")
     public Result getScores(@RequestParam("familyId") Long familyId) {
         return familyService.calculateDimensionScores(familyId);
+    }
+
+    @ApiOperation("获取家庭组本月财务健康状况评分")
+    @GetMapping("/getScoreTrend")
+    public Result getScoreTrend(@RequestParam Long familyId) {
+        return familyService.getScoreTrend(familyId);
     }
 
 }

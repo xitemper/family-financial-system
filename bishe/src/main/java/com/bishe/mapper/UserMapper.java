@@ -74,6 +74,9 @@ public interface UserMapper {
     @Select("select * from plans where status = 1 AND (target_date < CURDATE())")
     List<Plans> getOverTimePlanList();
 
+    @Select("select * from plans where id = #{planId}")
+    Plans getPlanById(@Param("planId") Long planId);
+
 //    @Select("select * from user where username =#{username} and password =#{password}")
 //    User getUser(String username, String password);
 
